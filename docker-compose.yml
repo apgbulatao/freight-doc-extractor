@@ -1,0 +1,51 @@
+# Local dev / integration testing only. This is NOT the deploy topology --
+# it exists so you can prove the containerized app talks correctly to a
+# containerized llama-server before touching the VPS or RunPod at all.
+#
+# In production the two services split apart: `app` -> CPU VPS (Oracle/
+# Hetzner), `llama-server` -> RunPod Serverless. Locally they run together
+# so MODEL_API_BASE can just point at the `llama-server` service name.
+#
+# Requires the NVIDIA Container Toolkit (and, on Windows, GPU passthrough
+# enabled in WSL2 -- `docker info` should list a Runtime called "nvidia")
+# for the llama-server service's GPU reservation to actually work.
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_API_BASE: http://llama-server:8080/v1
+      MODEL_NAME: Qwen2-VL-2B-Instruct-Q4_K_M.gguf
+    volumes:
+      - ./storage:/app/storage
+    depends_on:
+      - llama-server
+
+  llama-server:
+    # Official llama.cpp CUDA server image. Check
+    # https://github.com/ggml-org/llama.cpp/pkgs/container/llama.cpp for the
+    # current tag -- image names/tags on this project have moved before
+    # (ggerganov/llama.cpp -> ggml-org/llama.cpp), so don't assume `latest`
+    # or the tag below is still correct without checking.
+    image: ghcr.io/ggml-org/llama.cpp:server-cuda
+    ports:
+      - "8080:8080"
+    volumes:
+      # Put your Qwen2-VL-2B-Instruct Q4_K_M GGUF (and its mmproj file, for
+      # the vision tower) in ./models on the host.
+      - ./models:/models
+    command: >
+      -m /models/Qwen2-VL-2B-Instruct-Q4_K_M.gguf
+      --mmproj /models/mmproj-Qwen2-VL-2B-Instruct-f16.gguf
+      --host 0.0.0.0
+      --port 8080
+      -ngl 999
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

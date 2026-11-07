@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pymupdf
+python-docx
+pdfplumber
+pydantic
+httpx
+sqlalchemy
+slowapi

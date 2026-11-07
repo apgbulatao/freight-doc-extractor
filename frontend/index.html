@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Freight Doc Extractor — Manifest Intake</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #1B2430;
+    --ink-soft: #242F3D;
+    --manifest: #F2EFE9;
+    --manifest-dim: #E7E2D6;
+    --kraft: #C9A876;
+    --kraft-dim: #8A7550;
+    --green: #4C7A5E;
+    --red: #B7472A;
+    --steel: #5C6B7A;
+    --steel-light: #93A3B0;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--ink);
+    background-image:
+      radial-gradient(circle at 15% 10%, rgba(201,168,118,0.06), transparent 40%),
+      radial-gradient(circle at 85% 90%, rgba(76,122,94,0.05), transparent 40%);
+    color: var(--manifest);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 48px 24px 80px;
+  }
+
+  .wrap { max-width: 880px; margin: 0 auto; }
+
+  /* ---------- Header ---------- */
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-bottom: 2px solid var(--kraft-dim);
+    padding-bottom: 20px;
+    margin-bottom: 40px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .eyebrow {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--kraft);
+    margin: 0 0 6px;
+  }
+
+  h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    font-size: 28px;
+    letter-spacing: 0.01em;
+    margin: 0;
+    color: var(--manifest);
+  }
+
+  .server-status {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--steel-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--steel-light);
+    box-shadow: 0 0 0 3px rgba(147,163,176,0.15);
+  }
+  .dot.online { background: var(--green); box-shadow: 0 0 0 3px rgba(76,122,94,0.2); }
+  .dot.offline { background: var(--red); box-shadow: 0 0 0 3px rgba(183,71,42,0.2); }
+
+  /* ---------- Panels ---------- */
+  .panel {
+    background: var(--ink-soft);
+    border: 1px solid rgba(201,168,118,0.18);
+    border-radius: 4px;
+    padding: 28px;
+    margin-bottom: 28px;
+  }
+
+  .panel-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--kraft);
+    margin: 0 0 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .panel-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(201,168,118,0.25);
+  }
+
+  /* ---------- Dropzone ---------- */
+  .dropzone {
+    border: 2px dashed rgba(201,168,118,0.35);
+    border-radius: 4px;
+    padding: 36px 20px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background 0.15s ease;
+    margin-bottom: 20px;
+  }
+  .dropzone:hover, .dropzone.drag-over {
+    border-color: var(--kraft);
+    background: rgba(201,168,118,0.05);
+  }
+  .dropzone.has-file {
+    border-style: solid;
+    border-color: var(--green);
+    background: rgba(76,122,94,0.06);
+  }
+
+  .dropzone-icon {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 22px;
+    color: var(--kraft);
+    margin-bottom: 8px;
+    letter-spacing: 0.05em;
+  }
+  .dropzone-main { font-size: 14px; color: var(--manifest); margin: 0 0 4px; }
+  .dropzone-sub { font-size: 12px; color: var(--steel-light); margin: 0; }
+  .dropzone-filename {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--green);
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  input[type="file"] { display: none; }
+
+  /* ---------- Doc type selector ---------- */
+  .doctype-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+    margin-bottom: 22px;
+  }
+  @media (max-width: 560px) { .doctype-row { grid-template-columns: 1fr; } }
+
+  .doctype-option {
+    border: 1px solid rgba(201,168,118,0.3);
+    border-radius: 3px;
+    padding: 12px 14px;
+    cursor: pointer;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    letter-spacing: 0.03em;
+    color: var(--steel-light);
+    transition: all 0.12s ease;
+    user-select: none;
+  }
+  .doctype-option:hover { border-color: var(--kraft); color: var(--manifest); }
+  .doctype-option.selected {
+    border-color: var(--kraft);
+    background: rgba(201,168,118,0.12);
+    color: var(--kraft);
+  }
+
+  /* ---------- Submit button ---------- */
+  .submit-btn {
+    width: 100%;
+    background: var(--kraft);
+    color: var(--ink);
+    border: none;
+    border-radius: 3px;
+    padding: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s ease, opacity 0.15s ease;
+  }
+  .submit-btn:hover:not(:disabled) { background: #d9b884; }
+  .submit-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .submit-btn.loading { background: var(--steel); color: var(--manifest); }
+
+  /* ---------- Error banner ---------- */
+  .error-banner {
+    display: none;
+    background: rgba(183,71,42,0.12);
+    border: 1px solid var(--red);
+    border-radius: 3px;
+    padding: 14px 16px;
+    margin-top: 16px;
+    font-size: 13px;
+    color: #E8A48F;
+  }
+  .error-banner strong { color: var(--red); display: block; margin-bottom: 6px; font-family: 'JetBrains Mono', monospace; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; }
+  .error-banner ul { margin: 4px 0 0; padding-left: 18px; }
+
+  /* ---------- Manifest result card ---------- */
+  .manifest-card { display: none; position: relative; }
+
+  .stamp {
+    position: absolute;
+    top: -14px;
+    right: 20px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    padding: 8px 16px;
+    border: 3px solid currentColor;
+    border-radius: 4px;
+    transform: rotate(6deg);
+    background: var(--ink-soft);
+  }
+  .stamp.extracted { color: var(--green); }
+  .stamp.rejected { color: var(--red); }
+
+  .manifest-body {
+    background: var(--manifest);
+    color: var(--ink);
+    border-radius: 3px;
+    padding: 26px;
+  }
+
+  .manifest-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--steel);
+    padding-bottom: 14px;
+    margin-bottom: 18px;
+    border-bottom: 1px dashed var(--steel-light);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px 24px;
+    margin-bottom: 18px;
+  }
+  @media (max-width: 560px) { .field-grid { grid-template-columns: 1fr; } }
+
+  .field-label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin-bottom: 3px;
+  }
+  .field-value {
+    font-size: 14px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .field-value.empty { color: var(--steel-light); font-weight: 400; font-style: italic; }
+
+  .line-items-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--steel);
+    margin: 18px 0 8px;
+    padding-top: 14px;
+    border-top: 1px dashed var(--steel-light);
+  }
+
+  table.line-items { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.line-items th {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    color: var(--steel);
+    padding: 4px 8px 4px 0;
+    border-bottom: 1px solid var(--manifest-dim);
+    text-transform: uppercase;
+  }
+  table.line-items td {
+    padding: 6px 8px 6px 0;
+    border-bottom: 1px solid var(--manifest-dim);
+    color: var(--ink);
+  }
+  .no-items { font-size: 12px; color: var(--steel); font-style: italic; }
+
+  /* ---------- Manifest log ---------- */
+  .log-table { width: 100%; border-collapse: collapse; }
+  .log-table th {
+    text-align: left;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--kraft-dim);
+    padding: 0 10px 10px 0;
+    border-bottom: 1px solid rgba(201,168,118,0.25);
+  }
+  .log-table td {
+    padding: 10px 10px 10px 0;
+    border-bottom: 1px solid rgba(201,168,118,0.08);
+    font-size: 13px;
+    color: var(--manifest);
+  }
+  .log-table tr:last-child td { border-bottom: none; }
+  .log-table .mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--steel-light); }
+
+  .status-chip {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    padding: 3px 8px;
+    border-radius: 2px;
+    text-transform: uppercase;
+  }
+  .status-chip.extracted { color: var(--green); border: 1px solid var(--green); }
+  .status-chip.validation_failed { color: var(--red); border: 1px solid var(--red); }
+
+  .log-empty { font-size: 13px; color: var(--steel-light); padding: 12px 0; }
+
+  .refresh-btn {
+    background: none;
+    border: 1px solid rgba(201,168,118,0.3);
+    color: var(--kraft);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 3px;
+    cursor: pointer;
+    letter-spacing: 0.05em;
+  }
+  .refresh-btn:hover { border-color: var(--kraft); background: rgba(201,168,118,0.08); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="eyebrow">Cargo Intake &amp; Digitization</p>
+      <h1>FREIGHT DOC EXTRACTOR</h1>
+    </div>
+    <div class="server-status">
+      <span class="dot" id="statusDot"></span>
+      <span id="statusText">checking API…</span>
+      <button id="apiKeyBtn" type="button" style="margin-left:10px;font:inherit;background:none;border:1px solid currentColor;border-radius:4px;padding:2px 8px;cursor:pointer;opacity:0.75;">API Key</button>
+    </div>
+  </header>
+
+  <!-- Upload panel -->
+  <div class="panel">
+    <p class="panel-title">Manifest Intake</p>
+
+    <div class="dropzone" id="dropzone">
+      <div class="dropzone-icon">⇊</div>
+      <p class="dropzone-main">Drop a PDF or DOCX, or click to browse</p>
+      <p class="dropzone-sub">Commercial invoice · packing list · bill of lading</p>
+      <div class="dropzone-filename" id="filenameDisplay"></div>
+    </div>
+    <input type="file" id="fileInput" accept=".pdf,.docx" />
+
+    <div class="doctype-row" id="doctypeRow">
+      <div class="doctype-option" data-value="commercial_invoice">Commercial Invoice</div>
+      <div class="doctype-option" data-value="packing_list">Packing List</div>
+      <div class="doctype-option" data-value="bill_of_lading">Bill of Lading</div>
+    </div>
+
+    <button class="submit-btn" id="submitBtn" disabled>Process Document</button>
+
+    <div class="error-banner" id="errorBanner"></div>
+  </div>
+
+  <!-- Result -->
+  <div class="panel manifest-card" id="resultCard">
+    <p class="panel-title">Extraction Result</p>
+    <div style="position: relative;">
+      <div class="stamp" id="stamp"></div>
+      <div class="manifest-body" id="manifestBody"></div>
+    </div>
+  </div>
+
+  <!-- Log -->
+  <div class="panel">
+    <p class="panel-title">Manifest Log <span style="flex:none;"></span></p>
+    <div style="display:flex; justify-content:flex-end; margin-bottom: 12px;">
+      <button class="refresh-btn" id="refreshBtn">↻ Refresh</button>
+    </div>
+    <div id="logContainer"><p class="log-empty">Loading recent documents…</p></div>
+  </div>
+
+</div>
+
+<script>
+  // Same-origin by default now that FastAPI serves this file directly.
+  // Falls back to localhost:8000 only if opened as a bare file (file://).
+  const API_BASE = window.location.protocol === 'file:'
+    ? 'http://localhost:8000'
+    : window.location.origin;
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filenameDisplay = document.getElementById('filenameDisplay');
+  const doctypeRow = document.getElementById('doctypeRow');
+  const submitBtn = document.getElementById('submitBtn');
+  const errorBanner = document.getElementById('errorBanner');
+  const resultCard = document.getElementById('resultCard');
+  const stamp = document.getElementById('stamp');
+  const manifestBody = document.getElementById('manifestBody');
+  const logContainer = document.getElementById('logContainer');
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const apiKeyBtn = document.getElementById('apiKeyBtn');
+
+  let selectedFile = null;
+  let selectedDocType = null;
+
+  // ---------- API key ----------
+  // Stored client-side only, sent as a header on every data-bearing
+  // request. If the server has no API_KEY configured (local/dev), this
+  // header is simply ignored, so leaving it unset works fine there too.
+  const API_KEY_STORAGE_KEY = 'freight_extractor_api_key';
+
+  function getApiKey() {
+    return localStorage.getItem(API_KEY_STORAGE_KEY) || '';
+  }
+  function setApiKey(key) {
+    if (key) localStorage.setItem(API_KEY_STORAGE_KEY, key);
+    else localStorage.removeItem(API_KEY_STORAGE_KEY);
+    updateApiKeyBtnLabel();
+  }
+  function authHeaders() {
+    const key = getApiKey();
+    return key ? { 'X-API-Key': key } : {};
+  }
+  function updateApiKeyBtnLabel() {
+    apiKeyBtn.textContent = getApiKey() ? 'API Key ✓' : 'API Key';
+  }
+  apiKeyBtn.addEventListener('click', () => {
+    const current = getApiKey();
+    const entered = window.prompt(
+      current ? 'Update API key (leave blank to clear):' : 'Enter API key:',
+      current
+    );
+    if (entered === null) return; // cancelled
+    setApiKey(entered.trim());
+  });
+  updateApiKeyBtnLabel();
+
+  const FIELD_LABELS = {
+    shipper: 'Shipper', consignee: 'Consignee',
+    port_of_loading: 'Port of Loading', port_of_discharge: 'Port of Discharge',
+    gross_weight_kg: 'Gross Weight (kg)', net_weight_kg: 'Net Weight (kg)',
+    invoice_number: 'Invoice No.', invoice_date: 'Invoice Date',
+    incoterm: 'Incoterm', payment_terms: 'Payment Terms',
+    currency: 'Currency', total_value: 'Total Value',
+    packing_list_number: 'Packing List No.', total_packages: 'Total Packages',
+    dimensions: 'Dimensions', bol_number: 'B/L Number',
+    vessel_name: 'Vessel Name', voyage_number: 'Voyage No.',
+    carrier: 'Carrier', date_of_shipment: 'Date of Shipment',
+    freight_terms: 'Freight Terms',
+  };
+
+  // ---------- API health check ----------
+  async function checkHealth() {
+    try {
+      const res = await fetch(`${API_BASE}/health`);
+      if (res.ok) {
+        statusDot.className = 'dot online';
+        statusText.textContent = 'API online';
+      } else {
+        throw new Error();
+      }
+    } catch {
+      statusDot.className = 'dot offline';
+      statusText.textContent = 'API unreachable';
+    }
+  }
+
+  // ---------- Dropzone ----------
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag-over');
+    if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', (e) => {
+    if (e.target.files.length) handleFile(e.target.files[0]);
+  });
+
+  function handleFile(file) {
+    const validExt = /\.(pdf|docx)$/i.test(file.name);
+    if (!validExt) {
+      showError('Unsupported file type', ['Only PDF and DOCX files are accepted.']);
+      return;
+    }
+    selectedFile = file;
+    filenameDisplay.textContent = `✓ ${file.name}`;
+    dropzone.classList.add('has-file');
+    updateSubmitState();
+  }
+
+  // ---------- Doc type selection ----------
+  doctypeRow.addEventListener('click', (e) => {
+    const opt = e.target.closest('.doctype-option');
+    if (!opt) return;
+    [...doctypeRow.children].forEach(c => c.classList.remove('selected'));
+    opt.classList.add('selected');
+    selectedDocType = opt.dataset.value;
+    updateSubmitState();
+  });
+
+  function updateSubmitState() {
+    submitBtn.disabled = !(selectedFile && selectedDocType);
+  }
+
+  // ---------- Submit ----------
+  submitBtn.addEventListener('click', async () => {
+    if (!selectedFile || !selectedDocType) return;
+    hideError();
+    resultCard.style.display = 'none';
+    submitBtn.disabled = true;
+    submitBtn.classList.add('loading');
+    submitBtn.textContent = 'Processing…';
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    formData.append('doc_type', selectedDocType);
+
+    try {
+      const res = await fetch(`${API_BASE}/ingest`, { method: 'POST', headers: authHeaders(), body: formData });
+      const body = await res.json();
+
+      if (res.ok) {
+        renderResult(body, 'extracted');
+        loadLog();
+      } else if (res.status === 401) {
+        showError('Unauthorized', [
+          'Set a valid API key using the "API Key" button above, then try again.'
+        ]);
+      } else if (res.status === 429) {
+        showError('Rate limit reached', [
+          'This demo caps requests per visitor to control cloud GPU costs.',
+          'Please try again later.'
+        ]);
+        loadLog();
+      } else if (res.status === 422) {
+        const detail = body.detail || {};
+        showError('Model output failed validation', (detail.errors || []).map(
+          err => `${(err.loc || []).join('.')}: ${err.msg}`
+        ));
+        loadLog();
+      } else {
+        showError(`Request failed (${res.status})`, [body.detail || 'Unknown error']);
+      }
+    } catch (err) {
+      showError('Could not reach the API', [
+        `Is the server running at ${API_BASE}?`, err.message
+      ]);
+    } finally {
+      submitBtn.disabled = false;
+      submitBtn.classList.remove('loading');
+      submitBtn.textContent = 'Process Document';
+      updateSubmitState();
+    }
+  });
+
+  function showError(title, lines) {
+    errorBanner.innerHTML = `<strong>${title}</strong><ul>${lines.map(l => `<li>${escapeHtml(l)}</li>`).join('')}</ul>`;
+    errorBanner.style.display = 'block';
+  }
+  function hideError() { errorBanner.style.display = 'none'; }
+
+  function escapeHtml(str) {
+    const div = document.createElement('div');
+    div.textContent = String(str);
+    return div.innerHTML;
+  }
+
+  // ---------- Render manifest result ----------
+  function renderResult(body, status) {
+    resultCard.style.display = 'block';
+    stamp.textContent = 'EXTRACTED';
+    stamp.className = 'stamp extracted';
+
+    const data = body.extracted || {};
+    const metaLine = `
+      <span>DOC-ID ${body.document_id || '—'}</span>
+      <span>${(body.doc_type || '').replace(/_/g, ' ').toUpperCase()}</span>
+      <span>PATH: ${body.extraction_path || '—'}</span>
+    `;
+
+    const fieldEntries = Object.entries(data).filter(([k]) => k !== 'line_items' && k !== 'doc_type');
+    const fieldsHtml = fieldEntries.map(([key, value]) => {
+      const label = FIELD_LABELS[key] || key.replace(/_/g, ' ');
+      const isEmpty = value === null || value === undefined || value === '';
+      return `
+        <div>
+          <div class="field-label">${escapeHtml(label)}</div>
+          <div class="field-value ${isEmpty ? 'empty' : ''}">${isEmpty ? '— not found —' : escapeHtml(value)}</div>
+        </div>`;
+    }).join('');
+
+    const items = data.line_items || [];
+    let itemsHtml = '<p class="no-items">No line items extracted.</p>';
+    if (items.length) {
+      const rows = items.map(item => `
+        <tr>
+          <td>${escapeHtml(item.description ?? '—')}</td>
+          <td>${escapeHtml(item.quantity ?? '—')}</td>
+          <td>${escapeHtml(item.unit ?? '—')}</td>
+          <td>${escapeHtml(item.declared_value ?? '—')}</td>
+        </tr>`).join('');
+      itemsHtml = `
+        <table class="line-items">
+          <thead><tr><th>Description</th><th>Qty</th><th>Unit</th><th>Value</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    manifestBody.innerHTML = `
+      <div class="manifest-meta">${metaLine}</div>
+      <div class="field-grid">${fieldsHtml}</div>
+      <div class="line-items-title">Line Items</div>
+      ${itemsHtml}
+    `;
+  }
+
+  // ---------- Manifest log ----------
+  async function loadLog() {
+    try {
+      const res = await fetch(`${API_BASE}/documents?limit=15`, { headers: authHeaders() });
+      if (res.status === 401) {
+        logContainer.innerHTML = '<p class="log-empty">Unauthorized — set an API key using the button above to view the log.</p>';
+        return;
+      }
+      const docs = await res.json();
+      if (!docs.length) {
+        logContainer.innerHTML = '<p class="log-empty">No documents processed yet — the log fills in as manifests are cleared through intake.</p>';
+        return;
+      }
+      const rows = docs.map(d => `
+        <tr>
+          <td class="mono">${d.id}</td>
+          <td>${escapeHtml(d.filename)}</td>
+          <td class="mono">${(d.doc_type || '').replace(/_/g, ' ')}</td>
+          <td><span class="status-chip ${d.status}">${d.status.replace(/_/g, ' ')}</span></td>
+          <td class="mono">${new Date(d.uploaded_at).toLocaleString()}</td>
+        </tr>`).join('');
+      logContainer.innerHTML = `
+        <table class="log-table">
+          <thead><tr><th>ID</th><th>Filename</th><th>Type</th><th>Status</th><th>Uploaded</th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    } catch {
+      logContainer.innerHTML = '<p class="log-empty">Could not load the manifest log — check the API connection.</p>';
+    }
+  }
+
+  document.getElementById('refreshBtn').addEventListener('click', loadLog);
+
+  checkHealth();
+  loadLog();
+</script>
+</body>
+</html>

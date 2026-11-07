@@ -1,0 +1,32 @@
+# Model weights
+models/
+*.gguf
+
+# Local runtime data
+storage/
+*.db
+*.sqlite3
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Env files
+.env
+.env.*
+
+# Deployment notes
+DEPLOYMENT.md
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+
+# storage
+app/storage/
+*.pdf
+*.png
